@@ -20,7 +20,7 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=[
-        "pytorch>=1.0.0",
+        "torch>=1.0.0",
         "torchvision>=0.2.1"
     ]
 )
