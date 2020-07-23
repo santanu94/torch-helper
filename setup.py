@@ -8,7 +8,7 @@ setuptools.setup(
     version="0.1",
     author="Santanu Bhattacharjee",
     author_email="mail.santanu94@gmail.com",
-    description="A pytorch utility library to provide quick use functions while allowing low level customization.",
+    description="A pytorch utility to provide customizable quick use functions.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/santanu94/torch-helper",
