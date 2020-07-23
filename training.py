@@ -1,4 +1,6 @@
+from utils.metrics import accuracy
 import types
+
 class ModelWrapper():
     def __init__(self, model, opt=None, criterion=None, device=None, **watch):
         self.__state_data = {}
