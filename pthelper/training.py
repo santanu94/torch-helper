@@ -1,4 +1,4 @@
-from utils.metrics import accuracy
+from .utils.metrics import accuracy
 import types
 
 class ModelWrapper():

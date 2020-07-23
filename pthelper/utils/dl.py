@@ -1,4 +1,4 @@
-from device import get_default_device, to_device
+from .device import get_default_device, to_device
 
 class DataLoaderWrapper():
     def __init__(self, dl, device=None):
