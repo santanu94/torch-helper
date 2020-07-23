@@ -11,7 +11,7 @@ setuptools.setup(
     description="A pytorch utility to provide customizable quick use functions.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/santanu94/torch-helper",
+    url="https://github.com/santanu94/torch-helper.git",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
