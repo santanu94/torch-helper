@@ -1,3 +1,4 @@
+import torch
 from .utils.metrics import accuracy
 import types
 
