@@ -1,1 +1,1 @@
-from training import ModelWrapper
+from .training import ModelWrapper
