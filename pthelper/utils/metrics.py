@@ -1,3 +1,5 @@
+import torch
+
 def accuracy(output_label_similarity_list):
     output_label_similarity_tensor = output_label_similarity_list[0]
     for batch_tensor in output_label_similarity_list[1:]:
