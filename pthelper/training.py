@@ -1,5 +1,6 @@
 import torch
 from .utils.metrics import accuracy
+from .util import get_default_device, to_device
 import types
 
 class ModelWrapper():
