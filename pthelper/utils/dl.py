@@ -10,7 +10,7 @@ class DataLoaderWrapper():
 
     def __iter__(self):
         for batch in self.dl:
-            yield to_device(batch, device)
+            yield to_device(batch, self.device)
 
     def __len__(self):
         return len(self.dl)
