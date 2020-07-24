@@ -83,7 +83,7 @@ class ModelWrapper():
                 train_loss_epoch_history.append(loss.item())
                 self.__state_data['total_trained_epochs'] += 1
 
-            mean_epoch_train_loss = mean(train_loss_epoch_history)
+            mean_epoch_train_loss = self.__mean(train_loss_epoch_history)
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
             self.__end_of_epoch_step(train_loss_epoch_history, mean_epoch_val_loss, mean_epoch_val_acc, save_best_model_policy)
 
