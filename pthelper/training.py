@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from .utils.metrics import accuracy
 from .utils import get_default_device, to_device
 import types
