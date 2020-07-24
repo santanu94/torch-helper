@@ -23,6 +23,9 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
 
     # Getter methods
+    def model(self):
+        return self.__state_data['model']
+
     def optimizer(self):
         """Getter function for optimizer"""
         print(self.__state_data['opt'])
@@ -30,6 +33,9 @@ class ModelWrapper():
     def criterion(self):
         """Getter function for criterion"""
         print(self.__state_data['criterion'])
+
+    def parameters(self):
+        return self.__state_data['model'].parameters()
 
     def fit(self, epoch, train_dl, val_dl, test_dl=None, save_best_model_policy='val_loss'):
         """
