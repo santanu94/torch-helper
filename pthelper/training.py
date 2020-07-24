@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from .utils.metrics import accuracy
 from .utils import get_default_device, to_device
 from pathlib import Path
@@ -149,11 +150,30 @@ class ModelWrapper():
         """Return the average of all values in a list"""
         return sum(list_var) / len(list_var)
 
-    def untrained_model_stats(self, val_dl):
+    def performance_stats(self, val_dl):
         mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
         print('initial val loss ->', mean_epoch_val_loss, '  initial val acc ->', mean_epoch_val_acc)
 
-    def load_bestmodel():
+    def plot_loss(self):
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_loss'], label = 'Validation Loss')
+        plt.xlabel('epochs')
+        plt.ylabel('loss')
+        plt.legend()
+        plt.show()
+
+    def plot_acc(self):
+        # plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'], label = 'Validation accuracy')
+        plt.xlabel('epochs')
+        plt.ylabel('accuracy')
+        plt.legend()
+        plt.show()
+
+    def get_training_history(self):
+        return self.__state_data['history']
+
+    def load_bestmodel(self):
         if isinstance(self.__state_data['save_best_model_policy'], str):
             model_state_dict = torch.load(self.__state_data['save_best_model_path'] / 'bestmodel.pth')
             self.__state_data['model'].load_state_dict(model_state_dict)
