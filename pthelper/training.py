@@ -126,7 +126,7 @@ class ModelWrapper():
 
     def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
-            self.__save_best_model()
+            self.__save_best_model(mean_epoch_val_loss, mean_epoch_val_acc)
 
         self.__state_data['history']['train_loss'].append(mean_epoch_train_loss)
         self.__state_data['history']['val_loss'].append(mean_epoch_val_loss)
