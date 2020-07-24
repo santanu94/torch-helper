@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from .utils.metrics import accuracy
 from .utils import get_default_device, to_device
+from pathlib import Path
+import os
 import types
 
 class ModelWrapper():
@@ -38,7 +40,7 @@ class ModelWrapper():
     def parameters(self):
         return self.__state_data['model'].parameters()
 
-    def fit(self, epoch, train_dl, val_dl, test_dl=None, save_best_model_policy='val_loss'):
+    def fit(self, epoch, train_dl, val_dl, test_dl=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
 
@@ -59,11 +61,22 @@ class ModelWrapper():
             if 'val_acc', model will be saved on every validation accuracy improvement.
             If a function, watch['var_name'] can be used within the body.
             If None, no model will be saved.
+        save_best_model_path : str, default='model'
+            Location to save best model checkpoint.
+            Not used if save_best_model_policy is None or a function.
+            Manually save model if save_best_model_policy is a function.
         """
 
         # Perform opt and criterion checks
         assert self.__state_data['opt'], 'Optimizer not defined! Please use set_optimizer() to set an optimizer.'
         assert self.__state_data['criterion'], 'Criterion not defined! Please use set_criterion() to set a criterion.'
+
+        # Add to state data
+        self.__state_data['save_best_model_policy'] = save_best_model_policy
+        self.__state_data['save_best_model_path'] = Path(save_best_model_path)
+
+        # Create best model store directory (recursive)
+        if self.__state_data['save_best_model_policy']: os.makedirs(save_best_model_path, exist_ok=True)
 
         for i in range(epoch):
             train_loss_epoch_history = []
@@ -85,7 +98,7 @@ class ModelWrapper():
 
             mean_epoch_train_loss = self.__mean(train_loss_epoch_history)
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
-            self.__end_of_epoch_step(train_loss_epoch_history, mean_epoch_val_loss, mean_epoch_val_acc, save_best_model_policy)
+            self.__end_of_epoch_step(train_loss_epoch_history, mean_epoch_val_loss, mean_epoch_val_acc)
 
             print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss, '  val loss ->', mean_epoch_val_loss, '  val acc ->', mean_epoch_val_acc)
 
@@ -111,23 +124,22 @@ class ModelWrapper():
             val_acc_epoch_history.append(self.__get_output_label_similarity(nn.Sigmoid()(out), yb))
         return self.__mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
 
-    def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_val_loss, mean_epoch_val_acc, save_best_model_policy):
-        if save_best_model_policy and (not self.__state_data['best_val_loss'] or mean_epoch_val_loss < self.__state_data['best_val_loss']):
-            torch.save(self.__state_data['model'].state_dict(), TMP_PATH+'checkpoint.pth')
-            self.__state_data['best_val_loss'] = mean_epoch_val_loss
+    def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_val_loss, mean_epoch_val_acc):
+        if self.__state_data['save_best_model_policy']:
+            self.__save_best_model()
 
         self.__state_data['history']['train_loss'].append(mean_epoch_train_loss)
         self.__state_data['history']['val_loss'].append(mean_epoch_val_loss)
         self.__state_data['history']['val_acc'].append(mean_epoch_val_acc)
 
-    def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc, save_best_model_policy):
-        if save_best_model_policy == 'val_loss':
+    def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
+        if self.__state_data['save_best_model_policy'] == 'val_loss':
             if not self.__state_data['best_val_loss'] or mean_epoch_val_loss < self.__state_data['best_val_loss']:
-                torch.save(self.__state_data['model'].state_dict(), TMP_PATH+'checkpoint.pth')
+                torch.save(self.__state_data['model'].state_dict(), self.__state_data['save_best_model_path'] / 'bestmodel.pth')
                 self.__state_data['best_val_loss'] = mean_epoch_val_loss
-        elif save_best_model_policy == 'val_acc':
+        elif self.__state_data['save_best_model_policy'] == 'val_acc':
             pass
-        elif isinstance(save_best_model_policy, types.FunctionType):
+        elif isinstance(self.__state_data['save_best_model_policy'], types.FunctionType):
             save_best_model_policy()
 
     def __get_output_label_similarity(self, output, labels):
@@ -140,6 +152,11 @@ class ModelWrapper():
     def untrained_model_stats(self, val_dl):
         mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
         print('initial val loss ->', mean_epoch_val_loss, '  initial val acc ->', mean_epoch_val_acc)
+
+    def load_bestmodel():
+        if isinstance(self.__state_data['save_best_model_policy'], str):
+            model_state_dict = torch.load(self.__state_data['save_best_model_path'] / 'bestmodel.pth')
+            self.__state_data['model'].load_state_dict(model_state_dict)
 
     def model_summary(self):
         print(self.__state_data['model'])
