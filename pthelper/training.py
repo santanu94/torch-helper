@@ -142,13 +142,13 @@ class ModelWrapper():
             self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc.item())
 
         if self.__state_data['history']['epoch'] is None:
-            self.__state_data['history']['epoch'] = torch.tensor(i).view(1)
+            self.__state_data['history']['epoch'] = torch.tensor(epoch).view(1)
             self.__state_data['history']['train_loss'] = mean_epoch_train_loss.view(1)
             self.__state_data['history']['train_acc'] = mean_epoch_train_acc.view(1)
             self.__state_data['history']['val_loss'] = mean_epoch_val_loss.view(1)
             self.__state_data['history']['val_acc'] = mean_epoch_val_acc.view(1)
         else:
-            self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(i).view(1)))
+            self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(epoch).view(1)))
             self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss.view(1)))
             self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc.view(1)))
             self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss.view(1)))
