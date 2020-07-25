@@ -7,7 +7,7 @@ def get_default_device():
     else:
         return torch.device('cpu')
 
-def to_device(data, device):
+def to_device(data, device=get_default_device()):
     """Move data/model to GPU/CPU"""
     if isinstance(data, (list, tuple)):
         return [to_device(x, device) for x in data]
