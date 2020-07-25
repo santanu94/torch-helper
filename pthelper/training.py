@@ -15,7 +15,7 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
-        self.__state_data['history'] = { 'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': [] }
+        self.__state_data['history'] = { 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
@@ -81,7 +81,7 @@ class ModelWrapper():
         if self.__state_data['save_best_model_policy']: os.makedirs(save_best_model_path, exist_ok=True)
 
         for i in range(epoch):
-            train_loss_epoch_history = []
+            train_loss_epoch_history = None
             train_acc_epoch_history = []
             val_loss_epoch_history = []
             val_acc_epoch_history = []
@@ -96,10 +96,14 @@ class ModelWrapper():
                 self.__state_data['opt'].step()
                 self.__state_data['opt'].zero_grad()
 
-                train_loss_epoch_history.append(loss.item())
-                train_acc_epoch_history.append(self.__get_output_label_similarity(nn.Sigmoid()(out), yb))
+                if train_loss_epoch_history is None:
+                    train_loss_epoch_history = loss.detach()
+                    train_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
+                else:
+                    train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach()))
+                    train_acc_epoch_history = torch.cat((train_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
 
-            mean_epoch_train_loss = self.__mean(train_loss_epoch_history)
+            mean_epoch_train_loss = torch.mean(train_loss_epoch_history)
             mean_epoch_train_acc = accuracy(train_acc_epoch_history)
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
             self.__end_of_epoch_step(mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
@@ -114,8 +118,8 @@ class ModelWrapper():
         assert self.__state_data['criterion'], 'Criterion not defined! Please use set_criterion() to set a criterion.'
 
         # ToDo: custom function injection
-        val_loss_epoch_history = []
-        val_acc_epoch_history = []
+        val_loss_epoch_history = None
+        val_acc_epoch_history = None
         for xb, yb in dl:
             xb = xb.float()
             yb = yb.float()
@@ -124,18 +128,29 @@ class ModelWrapper():
             out = self.__state_data['model'](xb).view(yb.shape)
             loss = self.__state_data['criterion'](out, yb)
 
-            val_loss_epoch_history.append(loss.item())
-            val_acc_epoch_history.append(self.__get_output_label_similarity(nn.Sigmoid()(out), yb))
-        return self.__mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
+            if val_loss_epoch_history is None:
+                val_loss_epoch_history = loss.detach()
+                val_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
+            else:
+                val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach()))
+                val_acc_epoch_history = torch.cat((val_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
+
+        return torch.mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
 
     def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
-            self.__save_best_model(mean_epoch_val_loss, mean_epoch_val_acc)
+            self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc.item())
 
-        self.__state_data['history']['train_loss'].append(mean_epoch_train_loss)
-        self.__state_data['history']['train_acc'].append(mean_epoch_train_acc)
-        self.__state_data['history']['val_loss'].append(mean_epoch_val_loss)
-        self.__state_data['history']['val_acc'].append(mean_epoch_val_acc)
+        if self.__state_data['history']['train_loss'] is None:
+            self.__state_data['history']['train_loss'] = mean_epoch_train_loss
+            self.__state_data['history']['train_acc'] = mean_epoch_train_acc
+            self.__state_data['history']['val_loss'] = mean_epoch_val_loss
+            self.__state_data['history']['val_acc'] = mean_epoch_val_acc
+        else:
+            self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss))
+            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc))
+            self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss))
+            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc))
         self.__state_data['total_trained_epochs'] += 1
 
     def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
@@ -164,8 +179,8 @@ class ModelWrapper():
         """Plot graph comparing training and validation loss"""
         assert len(self.__state_data['history']['train_loss']) > 0, 'Model must be trained first.'
 
-        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
-        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_loss'], label = 'Validation Loss')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'].tolist(), label = 'Training Loss')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_loss'].tolist(), label = 'Validation Loss')
         plt.xlabel('epochs')
         plt.ylabel('loss')
         plt.legend()
@@ -175,8 +190,8 @@ class ModelWrapper():
         """Plot graph comparing training and validation accuracy"""
         assert len(self.__state_data['history']['train_acc']) > 0, 'Model must be trained first.'
 
-        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_acc'], label = 'Training Aaccuracy')
-        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'], label = 'Validation Accuracy')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_acc'].tolist(), label = 'Training Aaccuracy')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'].tolist(), label = 'Validation Accuracy')
         plt.xlabel('epochs')
         plt.ylabel('accuracy')
         plt.legend()

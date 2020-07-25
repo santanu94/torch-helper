@@ -10,16 +10,16 @@ def predict(model, data):
     Parameters
     ----------
     model : ModelWrapper or pytorch model
-    data: tensor or DataLoaderWrapper
+    data: Tensor or DataLoaderWrapper
         Pass a transformed tensor to predict on single image.
 
     Returns
     -------
-    tensor
+    Tensor
         A tensor of prediction probabilities.
-    tensor
+    Tensor
         A tensor of prediction class.
-    tensor
+    Tensor
         A tensor of all labels.
         If labels are not available return tensor of null.
     """
