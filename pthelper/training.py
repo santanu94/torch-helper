@@ -15,7 +15,7 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
-        self.__state_data['history'] = { 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
+        self.__state_data['history'] = { 'epoch': None, 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
@@ -80,7 +80,7 @@ class ModelWrapper():
         # Create best model store directory (recursive)
         if self.__state_data['save_best_model_policy']: os.makedirs(save_best_model_path, exist_ok=True)
 
-        for i in range(epoch):
+        for i in range(1, epoch+1):
             train_loss_epoch_history = None
             train_acc_epoch_history = []
             val_loss_epoch_history = []
@@ -106,9 +106,9 @@ class ModelWrapper():
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
             mean_epoch_train_acc = accuracy(train_acc_epoch_history).cpu()
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
-            self.__end_of_epoch_step(mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
+            self.__end_of_epoch_step(i, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
 
-            print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss.item(), '  train acc ->', mean_epoch_train_acc.item(), '  val loss ->', mean_epoch_val_loss.item(), '  val acc ->', mean_epoch_val_acc.item())
+            print('epoch ->', i, '  train loss ->', mean_epoch_train_loss.item(), '  train acc ->', mean_epoch_train_acc.item(), '  val loss ->', mean_epoch_val_loss.item(), '  val acc ->', mean_epoch_val_acc.item())
 
     @torch.no_grad()
     def __validation_step(self, dl):
@@ -137,20 +137,22 @@ class ModelWrapper():
 
         return torch.mean(val_loss_epoch_history).cpu(), accuracy(val_acc_epoch_history).cpu()
 
-    def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
+    def __end_of_epoch_step(self, epoch, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
             self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc.item())
 
-        if self.__state_data['history']['train_loss'] is None:
-            self.__state_data['history']['train_loss'] = mean_epoch_train_loss
-            self.__state_data['history']['train_acc'] = mean_epoch_train_acc
-            self.__state_data['history']['val_loss'] = mean_epoch_val_loss
-            self.__state_data['history']['val_acc'] = mean_epoch_val_acc
+        if self.__state_data['history']['epoch'] is None:
+            self.__state_data['history']['epoch'] = torch.tensor(i).view(1)
+            self.__state_data['history']['train_loss'] = mean_epoch_train_loss.view(1)
+            self.__state_data['history']['train_acc'] = mean_epoch_train_acc.view(1)
+            self.__state_data['history']['val_loss'] = mean_epoch_val_loss.view(1)
+            self.__state_data['history']['val_acc'] = mean_epoch_val_acc.view(1)
         else:
-            self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss))
-            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc))
-            self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss))
-            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc))
+            self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(i).view(1)))
+            self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss.view(1)))
+            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc.view(1)))
+            self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss.view(1)))
+            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc.view(1)))
         self.__state_data['total_trained_epochs'] += 1
 
     def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
