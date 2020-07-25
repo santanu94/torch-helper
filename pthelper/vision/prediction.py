@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ..utils import DataLoaderWrapper
+from ..training import ModelWrapper
 
 @torch.no_grad()
 def predict(model, data):
