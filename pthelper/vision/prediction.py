@@ -31,7 +31,7 @@ def predict(model, data):
     if torch.is_tensor(data):
         if len(data.shape) == 3:
             data = torch.unsqueeze(data, 0)
-        out = nn.Sigmoid()(model()(data)).cpu()
+        out = nn.Sigmoid()(model(data)).cpu()
         return out, torch.round(out).int(), torch.tensor(float('nan'))
     else:
         out_list = pred_list = label_list = None
@@ -47,7 +47,7 @@ def predict(model, data):
             if len(xb.shape) == 3:
                 xb = torch.unsqueeze(xb, 0)
 
-            out = nn.Sigmoid()(model()(xb)).cpu()
+            out = nn.Sigmoid()(model(xb)).cpu()
 
             if out_list is None:
                 out_list = out
