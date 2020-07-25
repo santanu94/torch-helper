@@ -97,10 +97,10 @@ class ModelWrapper():
                 self.__state_data['opt'].zero_grad()
 
                 if train_loss_epoch_history is None:
-                    train_loss_epoch_history = loss.detach()
+                    train_loss_epoch_history = loss.detach().view(1)
                     train_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
                 else:
-                    train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach()))
+                    train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach().view(1)))
                     train_acc_epoch_history = torch.cat((train_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
 
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history)
@@ -129,10 +129,10 @@ class ModelWrapper():
             loss = self.__state_data['criterion'](out, yb)
 
             if val_loss_epoch_history is None:
-                val_loss_epoch_history = loss.detach()
+                val_loss_epoch_history = loss.detach().view(1)
                 val_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
             else:
-                val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach()))
+                val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach().view(1)))
                 val_acc_epoch_history = torch.cat((val_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
 
         return torch.mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
