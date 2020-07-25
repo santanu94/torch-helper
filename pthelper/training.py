@@ -15,7 +15,7 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
-        self.__state_data['history'] = { 'train_loss': [], 'val_loss': [], 'val_acc': [] }
+        self.__state_data['history'] = { 'train_loss': [], 'train_acc': [], 'val_loss': [], 'val_acc': [] }
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
@@ -27,9 +27,6 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
 
     # Getter methods
-    def model(self):
-        return self.__state_data['model']
-
     def optimizer(self):
         """Getter function for optimizer"""
         print(self.__state_data['opt'])
@@ -37,6 +34,10 @@ class ModelWrapper():
     def criterion(self):
         """Getter function for criterion"""
         print(self.__state_data['criterion'])
+
+    def model(self):
+        """Return model object"""
+        return self.__state_data['model']
 
     def parameters(self):
         return self.__state_data['model'].parameters()
@@ -81,6 +82,7 @@ class ModelWrapper():
 
         for i in range(epoch):
             train_loss_epoch_history = []
+            train_acc_epoch_history = []
             val_loss_epoch_history = []
             val_acc_epoch_history = []
             for xb, yb in train_dl:
@@ -95,13 +97,14 @@ class ModelWrapper():
                 self.__state_data['opt'].zero_grad()
 
                 train_loss_epoch_history.append(loss.item())
-                self.__state_data['total_trained_epochs'] += 1
+                train_acc_epoch_history.append(self.__get_output_label_similarity(nn.Sigmoid()(out), yb))
 
             mean_epoch_train_loss = self.__mean(train_loss_epoch_history)
+            mean_epoch_train_acc = accuracy(train_acc_epoch_history)
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
-            self.__end_of_epoch_step(train_loss_epoch_history, mean_epoch_val_loss, mean_epoch_val_acc)
+            self.__end_of_epoch_step(mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
 
-            print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss, '  val loss ->', mean_epoch_val_loss, '  val acc ->', mean_epoch_val_acc)
+            print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss, '  train acc ->', mean_epoch_train_acc, '  val loss ->', mean_epoch_val_loss, '  val acc ->', mean_epoch_val_acc)
 
     @torch.no_grad()
     def __validation_step(self, dl):
@@ -125,13 +128,15 @@ class ModelWrapper():
             val_acc_epoch_history.append(self.__get_output_label_similarity(nn.Sigmoid()(out), yb))
         return self.__mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
 
-    def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_val_loss, mean_epoch_val_acc):
+    def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
             self.__save_best_model(mean_epoch_val_loss, mean_epoch_val_acc)
 
         self.__state_data['history']['train_loss'].append(mean_epoch_train_loss)
+        self.__state_data['history']['train_acc'].append(mean_epoch_train_acc)
         self.__state_data['history']['val_loss'].append(mean_epoch_val_loss)
         self.__state_data['history']['val_acc'].append(mean_epoch_val_acc)
+        self.__state_data['total_trained_epochs'] += 1
 
     def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy'] == 'val_loss':
@@ -151,10 +156,14 @@ class ModelWrapper():
         return sum(list_var) / len(list_var)
 
     def performance_stats(self, val_dl):
+        """Print loss and accuracy of model"""
         mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
-        print('initial val loss ->', mean_epoch_val_loss, '  initial val acc ->', mean_epoch_val_acc)
+        print('loss ->', mean_epoch_val_loss, '  acc ->', mean_epoch_val_acc)
 
     def plot_loss(self):
+        """Plot graph comparing training and validation loss"""
+        assert len(self.__state_data['history']['train_loss']) > 1, 'Model must be trained first.'
+
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_loss'], label = 'Validation Loss')
         plt.xlabel('epochs')
@@ -163,20 +172,24 @@ class ModelWrapper():
         plt.show()
 
     def plot_acc(self):
-        # plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
-        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'], label = 'Validation accuracy')
+        """Plot graph comparing training and validation accuracy"""
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_acc'], label = 'Training Aaccuracy')
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'], label = 'Validation Accuracy')
         plt.xlabel('epochs')
         plt.ylabel('accuracy')
         plt.legend()
         plt.show()
 
-    def get_training_history(self):
+    def training_history(self):
+        """Return dictionary containing training and validation loss and accuracy captured during training"""
         return self.__state_data['history']
 
     def load_bestmodel(self):
+        """Load best saved model if save_best_model_policy is 'val_loss' or 'val_acc'"""
         if isinstance(self.__state_data['save_best_model_policy'], str):
             model_state_dict = torch.load(self.__state_data['save_best_model_path'] / 'bestmodel.pth')
             self.__state_data['model'].load_state_dict(model_state_dict)
 
     def model_summary(self):
+        """Print model"""
         print(self.__state_data['model'])
