@@ -162,7 +162,7 @@ class ModelWrapper():
 
     def plot_loss(self):
         """Plot graph comparing training and validation loss"""
-        assert len(self.__state_data['history']['train_loss']) > 1, 'Model must be trained first.'
+        assert len(self.__state_data['history']['train_loss']) > 0, 'Model must be trained first.'
 
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_loss'], label = 'Training Loss')
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_loss'], label = 'Validation Loss')
@@ -173,6 +173,8 @@ class ModelWrapper():
 
     def plot_acc(self):
         """Plot graph comparing training and validation accuracy"""
+        assert len(self.__state_data['history']['train_acc']) > 0, 'Model must be trained first.'
+
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['train_acc'], label = 'Training Aaccuracy')
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'], label = 'Validation Accuracy')
         plt.xlabel('epochs')
