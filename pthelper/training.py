@@ -103,12 +103,12 @@ class ModelWrapper():
                     train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach().view(1)))
                     train_acc_epoch_history = torch.cat((train_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
 
-            mean_epoch_train_loss = torch.mean(train_loss_epoch_history)
-            mean_epoch_train_acc = accuracy(train_acc_epoch_history)
+            mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
+            mean_epoch_train_acc = accuracy(train_acc_epoch_history).cpu()
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
             self.__end_of_epoch_step(mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
 
-            print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss, '  train acc ->', mean_epoch_train_acc, '  val loss ->', mean_epoch_val_loss, '  val acc ->', mean_epoch_val_acc)
+            print('epoch ->', i+1, '  train loss ->', mean_epoch_train_loss.item(), '  train acc ->', mean_epoch_train_acc.item(), '  val loss ->', mean_epoch_val_loss.item(), '  val acc ->', mean_epoch_val_acc.item())
 
     @torch.no_grad()
     def __validation_step(self, dl):
@@ -135,7 +135,7 @@ class ModelWrapper():
                 val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach().view(1)))
                 val_acc_epoch_history = torch.cat((val_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
 
-        return torch.mean(val_loss_epoch_history), accuracy(val_acc_epoch_history)
+        return torch.mean(val_loss_epoch_history).cpu(), accuracy(val_acc_epoch_history).cpu()
 
     def __end_of_epoch_step(self, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
@@ -173,7 +173,7 @@ class ModelWrapper():
     def performance_stats(self, val_dl):
         """Print loss and accuracy of model"""
         mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
-        print('loss ->', mean_epoch_val_loss, '  acc ->', mean_epoch_val_acc)
+        print('loss ->', mean_epoch_val_loss.item(), '  acc ->', mean_epoch_val_acc.item())
 
     def plot_loss(self):
         """Plot graph comparing training and validation loss"""
