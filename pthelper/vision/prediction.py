@@ -41,7 +41,7 @@ def predict(model, data):
                 xb, yb = batch
             else:
                 xb = batch[0]
-                yb = torch.tensor([float('nan')]*xb.size()[0])
+                yb = torch.tensor([float('nan')]*xb.size()[0]).cpu()
 
             # Add batch_size dimension if not present
             if len(xb.shape) == 3:
@@ -57,4 +57,4 @@ def predict(model, data):
                 out_list = torch.cat((out_list, out))
                 pred_list = torch.cat((pred_list, torch.round(out)))
                 label_list = torch.cat((label_list, yb))
-        return out_list, pred_list.int(), label_list.int(), label_list
+        return out_list, pred_list.int(), label_list.int()

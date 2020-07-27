@@ -21,6 +21,7 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=[
         "torch>=1.0.0",
-        "torchvision>=0.2.1"
+        "torchvision>=0.2.1",
+        "sklearn"
     ]
 )
