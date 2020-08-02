@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn.functional import one_hot
 import matplotlib.pyplot as plt
 from .utils.metrics import accuracy
 from .utils import get_default_device, to_device
@@ -8,11 +9,44 @@ import os
 import types
 
 class ModelWrapper():
-    def __init__(self, model, opt=None, criterion=None, device=None, **watch):
+    def __init__(self, model, opt=None, criterion=None, pred_func=None, output_selection_func=None, device=None, **watch):
+        """
+        Wrapper class for model, optimizer and loss.
+
+        Parameters
+        ----------
+        model : Pytorch Model
+        opt : Pytorch optimizer
+        criterion : Pytorch loss
+        pred_func : Pytorch layer or function reference, optional
+            If model outputs logit then pass a function reference or a pytorch
+            layer to get prediction or calculate model accuracy.
+            For regression output, keep None.
+            e.g. - nn.Softmax(dim=1), nn.Sigmoid()
+        output_selection_func : 'round', 'argmax' or function reference, optional
+            If round, prediction is rounded off to 0 or 1. Can be useful for
+                binary classification.
+            If argmax, prediction is converted from shape (batch_size, num_classes)
+                to (batch_size) by selecting class with highest value from each
+                batch.
+            If function reference, the function should accept one parameter (the
+                model output after passing/not passing through pred_func) and
+                should return the modified value.
+        device : 'cpu' or 'cuda', optional
+            If not None, the model is moved to the given device.
+            If None, use GPU if available or else use CPU.
+        watch : array or dict
+            Additional parameters to track. Can be accessed from anywhere using
+                <ModelWrapper_object>.watch.
+        """
         self.__state_data = {}
         self.__state_data['model'] = model
         self.__state_data['opt'] = opt
         self.__state_data['criterion'] = criterion
+        self.__state_data['pred_func'] = pred_func
+        # self.__state_data['one_hot_target'] = one_hot_target
+        # self.__state_data['num_classes'] = num_classes
+        self.__state_data['output_selection_func'] = output_selection_func
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
         self.__state_data['history'] = { 'epoch': None, 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
@@ -42,6 +76,10 @@ class ModelWrapper():
     def parameters(self):
         return self.__state_data['model'].parameters()
 
+    def get_state_data(self):
+        return self.__state_data
+
+    # Train model
     def fit(self, epoch, train_dl, val_dl, test_dl=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
@@ -90,18 +128,34 @@ class ModelWrapper():
                 yb = yb.float()
 
                 self.__state_data['model'].train()
-                out = self.__state_data['model'](xb).view(yb.shape)
+                out = self.__state_data['model'](xb)
+
+                if type(self.__state_data['criterion']) == nn.BCEWithLogitsLoss:
+                    out = out.view(yb.shape)
+                elif type(self.__state_data['criterion']) == nn.CrossEntropyLoss:
+                    yb = yb.long()
+
                 loss = self.__state_data['criterion'](out, yb)
                 loss.backward()
                 self.__state_data['opt'].step()
                 self.__state_data['opt'].zero_grad()
 
+                if self.__state_data['pred_func']:
+                    out = self.__state_data['pred_func'](out)
+
+                if self.__state_data['output_selection_func'] == 'round':
+                    out = torch.round(out)
+                elif self.__state_data['output_selection_func'] == 'argmax':
+                    out = torch.argmax(out, dim=1)
+                else:
+                    out = output_selection_func(out)
+
                 if train_loss_epoch_history is None:
                     train_loss_epoch_history = loss.detach().view(1)
-                    train_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
+                    train_acc_epoch_history = (out == yb)
                 else:
                     train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach().view(1)))
-                    train_acc_epoch_history = torch.cat((train_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
+                    train_acc_epoch_history = torch.cat((train_acc_epoch_history, out == yb))
 
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
             mean_epoch_train_acc = accuracy(train_acc_epoch_history).cpu()
@@ -125,15 +179,31 @@ class ModelWrapper():
             yb = yb.float()
 
             self.__state_data['model'].eval()
-            out = self.__state_data['model'](xb).view(yb.shape)
+            out = self.__state_data['model'](xb)
+
+            if type(self.__state_data['criterion']) == nn.BCEWithLogitsLoss:
+                out = out.view(yb.shape)
+            elif type(self.__state_data['criterion']) == nn.CrossEntropyLoss:
+                yb = yb.long()
+
             loss = self.__state_data['criterion'](out, yb)
+
+            if self.__state_data['pred_func']:
+                out = self.__state_data['pred_func'](out)
+
+            if self.__state_data['output_selection_func'] == 'round':
+                out = torch.round(out)
+            elif self.__state_data['output_selection_func'] == 'argmax':
+                out = torch.argmax(out, dim=1)
+            else:
+                out = output_selection_func(out)
 
             if val_loss_epoch_history is None:
                 val_loss_epoch_history = loss.detach().view(1)
-                val_acc_epoch_history = torch.round(nn.Sigmoid()(out)) == yb
+                val_acc_epoch_history = (out == yb)
             else:
                 val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach().view(1)))
-                val_acc_epoch_history = torch.cat((val_acc_epoch_history, torch.round(nn.Sigmoid()(out)) == yb))
+                val_acc_epoch_history = torch.cat((val_acc_epoch_history, out == yb))
 
         return torch.mean(val_loss_epoch_history).cpu(), accuracy(val_acc_epoch_history).cpu()
 
@@ -168,10 +238,6 @@ class ModelWrapper():
     def __get_output_label_similarity(self, output, labels):
         return (torch.round(output) == labels)
 
-    def __mean(self, list_var):
-        """Return the average of all values in a list"""
-        return sum(list_var) / len(list_var)
-
     def performance_stats(self, val_dl):
         """Print loss and accuracy of model"""
         mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
@@ -205,9 +271,15 @@ class ModelWrapper():
 
     def load_bestmodel(self):
         """Load best saved model if save_best_model_policy is 'val_loss' or 'val_acc'"""
-        if isinstance(self.__state_data['save_best_model_policy'], str):
+        if 'save_best_model_policy' not in self.__state_data:
+            print('Model has not been trained yet.')
+        elif not self.__state_data['save_best_model_policy']:
+            print('No model to load!! Best model was not saved while training.')
+        elif isinstance(self.__state_data['save_best_model_policy'], str):
             model_state_dict = torch.load(self.__state_data['save_best_model_path'] / 'bestmodel.pth')
             self.__state_data['model'].load_state_dict(model_state_dict)
+        else:
+            print('Unclear save best model policy.')
 
     def model_summary(self):
         """Print model"""
