@@ -4,7 +4,7 @@ from torch.optim import lr_scheduler
 from torch.nn.functional import one_hot
 from torch.nn.utils import clip_grad_norm_
 import matplotlib.pyplot as plt
-from .utils.metrics import accuracy
+from .utils.metrics import get_accuracy, get_f1_score
 from .utils import get_default_device, to_device
 from pathlib import Path
 import os
@@ -52,7 +52,9 @@ class ModelWrapper():
         self.__state_data['output_selection_func'] = output_selection_func
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
-        self.__state_data['history'] = { 'epoch': None, 'lr': None, 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
+        self.__state_data['batch_model_pred'] = None
+        self.__state_data['batch_true_labels'] = None
+        self.__state_data['history'] = { 'epoch': None, 'lr': None, 'train_loss': None, 'train_acc': None, 'train_f1': None, 'val_loss': None, 'val_acc': None, 'val_f1': None }
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
@@ -83,7 +85,7 @@ class ModelWrapper():
         return self.__state_data
 
     # Train model
-    def fit(self, epoch, train_dl, val_dl, test_dl=None, scheduler=None, grad_clip=None, save_best_model_policy='val_loss', save_best_model_path='model'):
+    def fit(self, epoch, train_dl, val_dl, test_dl=None, scheduler=None, grad_clip=None, f1_score=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
 
@@ -103,6 +105,24 @@ class ModelWrapper():
             Note - CosineAnnealingLR and CosineAnnealingWarmRestarts are not supported right now.
         grad_clip : float or int, optional
             If provided, clip gradients of model before performin optimizer.step().
+        f1_score : 'binary', 'micro', 'macro', 'weighted', 'samples' or None, optional
+            Calculate and display f1 score during training. Implements sklearn.metrics.f1_score
+            'binary'
+                Only report results for the class specified by pos_label. This is applicable only
+                if targets (y_{true,pred}) are binary.
+            'micro'
+                Calculate metrics globally by counting the total true positives, false negatives
+                and false positives.
+            'macro'
+                Calculate metrics for each label, and find their unweighted mean. This does not
+                take label imbalance into account.
+            'weighted'
+                Calculate metrics for each label, and find their average weighted by support
+                (the number of true instances for each label). This alters ‘macro’ to account for
+                label imbalance; it can result in an F-score that is not between precision and recall.
+            'samples'
+                Calculate metrics for each instance, and find their average (only meaningful for
+                multilabel classification where this differs from accuracy_score).
         save_best_model_policy : str or function or None, default='val_loss'
             Can be either 'val_loss', 'val_acc' or a function for custom save policy.
             If 'val_loss', model will be saved on every validation loss improvemrnt.
@@ -122,6 +142,7 @@ class ModelWrapper():
         # Add to state data
         self.__state_data['scheduler'] = scheduler
         self.__state_data['grad_clip'] = grad_clip
+        self.__state_data['f1_score'] = f1_score
         self.__state_data['save_best_model_policy'] = save_best_model_policy
         self.__state_data['save_best_model_path'] = Path(save_best_model_path)
 
@@ -130,9 +151,9 @@ class ModelWrapper():
 
         for i in range(1, epoch+1):
             train_loss_epoch_history = None
-            train_acc_epoch_history = []
-            val_loss_epoch_history = []
-            val_acc_epoch_history = []
+            train_epoch_pred = None
+            train_epoch_true_label = None
+            # train_acc_epoch_history = []
             for xb, yb in train_dl:
                 xb = xb.float()
                 yb = yb.float()
@@ -164,23 +185,38 @@ class ModelWrapper():
                 else:
                     out = output_selection_func(out)
 
+                self.__state_data['batch_model_pred'] = out
+                self.__state_data['batch_true_labels'] = yb
+
                 if train_loss_epoch_history is None:
                     train_loss_epoch_history = loss.detach().view(1)
-                    train_acc_epoch_history = (out == yb)
+                    train_epoch_pred = out
+                    train_epoch_true_label = yb
+                    # train_acc_epoch_history = (out == yb)
                 else:
                     train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach().view(1)))
-                    train_acc_epoch_history = torch.cat((train_acc_epoch_history, out == yb))
+                    train_epoch_pred = torch.cat((train_epoch_pred, out))
+                    train_epoch_true_label = torch.cat((train_epoch_true_label, yb))
+                    # train_acc_epoch_history = torch.cat((train_acc_epoch_history, out == yb))
 
                 if self.__state_data['scheduler'] and isinstance(scheduler, (lr_scheduler.CyclicLR, lr_scheduler.OneCycleLR)):
                     self.__state_data['scheduler'].step()
 
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
-            mean_epoch_train_acc = accuracy(train_acc_epoch_history).cpu()
-            mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
+            mean_epoch_train_acc = get_accuracy(train_epoch_true_label, train_epoch_pred)
+            train_f1_score = get_f1_score(train_epoch_true_label, train_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
+            mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score = self.__validation_step(val_dl)
 
             self.__end_of_epoch_step(i, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
 
-            print('epoch ->', i, '  train loss ->', mean_epoch_train_loss.item(), '  train acc ->', mean_epoch_train_acc.item(), '  val loss ->', mean_epoch_val_loss.item(), '  val acc ->', mean_epoch_val_acc.item())
+            report = 'epoch -> ' + str(i)
+            report += '  train loss -> ' + str(mean_epoch_train_loss.item())
+            report += '  train acc -> ' + str(mean_epoch_train_acc)
+            report += '  train_f1 -> ' + str(train_f1_score) if train_f1_score is not None
+            report += '  val loss -> ' + str(mean_epoch_val_loss.item())
+            report += '  val acc -> ' + str(mean_epoch_val_acc)
+            report += '  val_f1 -> ' + str(val_f1_score) if val_f1_score is not None
+            print(report)
 
     @torch.no_grad()
     def __validation_step(self, dl):
@@ -191,7 +227,9 @@ class ModelWrapper():
 
         # ToDo: custom function injection
         val_loss_epoch_history = None
-        val_acc_epoch_history = None
+        # val_acc_epoch_history = None
+        val_epoch_pred = None
+        val_epoch_true_label = None
         for xb, yb in dl:
             xb = xb.float()
             yb = yb.float()
@@ -216,14 +254,21 @@ class ModelWrapper():
             else:
                 out = output_selection_func(out)
 
+            self.__state_data['batch_model_pred'] = out
+            self.__state_data['batch_true_labels'] = yb
+
             if val_loss_epoch_history is None:
                 val_loss_epoch_history = loss.detach().view(1)
-                val_acc_epoch_history = (out == yb)
+                val_epoch_pred = out
+                val_epoch_true_label = yb
+                # val_acc_epoch_history = (out == yb)
             else:
                 val_loss_epoch_history = torch.cat((val_loss_epoch_history, loss.detach().view(1)))
-                val_acc_epoch_history = torch.cat((val_acc_epoch_history, out == yb))
+                val_epoch_pred = torch.cat((val_epoch_pred, out))
+                val_epoch_true_label = torch.cat((val_epoch_true_label, yb))
+                # val_acc_epoch_history = torch.cat((val_acc_epoch_history, out == yb))
 
-        return torch.mean(val_loss_epoch_history).cpu(), accuracy(val_acc_epoch_history).cpu()
+        return torch.mean(val_loss_epoch_history).cpu(), get_accuracy(val_epoch_true_label, val_epoch_pred), get_f1_score(val_epoch_true_label, val_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
 
     def __end_of_epoch_step(self, epoch, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy']:
@@ -233,21 +278,24 @@ class ModelWrapper():
         for param_group in self.__state_data['opt'].param_groups:
             lr = param_group['lr']
 
+        if self.__state_data['f1_score']:
+            val_f1_score = get_f1_score(self.__state_data['batch_true_labels'], self.__state_data['batch_model_pred'], average=self.__state_data['f1_score'])
+
         # Record training history
         if self.__state_data['history']['epoch'] is None:
             self.__state_data['history']['epoch'] = torch.tensor(epoch).view(1)
             self.__state_data['history']['lr'] = torch.tensor(lr).view(1)
             self.__state_data['history']['train_loss'] = mean_epoch_train_loss.view(1)
-            self.__state_data['history']['train_acc'] = mean_epoch_train_acc.view(1)
+            self.__state_data['history']['train_acc'] = mean_epoch_train_acc
             self.__state_data['history']['val_loss'] = mean_epoch_val_loss.view(1)
-            self.__state_data['history']['val_acc'] = mean_epoch_val_acc.view(1)
+            self.__state_data['history']['val_acc'] = mean_epoch_val_acc
         else:
             self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(epoch).view(1)))
             self.__state_data['history']['lr'] = torch.cat((self.__state_data['history']['lr'], torch.tensor(lr).view(1)))
             self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss.view(1)))
-            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc.view(1)))
+            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc))
             self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss.view(1)))
-            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc.view(1)))
+            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc))
 
         # Step scheduler
         if self.__state_data['scheduler']:
