@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
+from torch.optim import lr_scheduler
 from torch.nn.functional import one_hot
+from torch.nn.utils import clip_grad_norm_
 import matplotlib.pyplot as plt
 from .utils.metrics import accuracy
 from .utils import get_default_device, to_device
 from pathlib import Path
 import os
 import types
+import warnings
 
 class ModelWrapper():
     def __init__(self, model, opt=None, criterion=None, pred_func=None, output_selection_func=None, device=None, **watch):
@@ -49,7 +52,7 @@ class ModelWrapper():
         self.__state_data['output_selection_func'] = output_selection_func
         self.__state_data['total_trained_epochs'] = 0
         self.__state_data['best_val_loss'] = None
-        self.__state_data['history'] = { 'epoch': None, 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
+        self.__state_data['history'] = { 'epoch': None, 'lr': None, 'train_loss': None, 'train_acc': None, 'val_loss': None, 'val_acc': None }
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
@@ -80,7 +83,7 @@ class ModelWrapper():
         return self.__state_data
 
     # Train model
-    def fit(self, epoch, train_dl, val_dl, test_dl=None, save_best_model_policy='val_loss', save_best_model_path='model'):
+    def fit(self, epoch, train_dl, val_dl, test_dl=None, scheduler=None, grad_clip=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
 
@@ -95,6 +98,11 @@ class ModelWrapper():
             Data to be used for validation.
         test_dl : DataLoader, DataLoaderWrapper or Iterable, optional
             Data to be used to test model performance.
+        scheduler : Pytorch scheduler, optional
+            Scheduler to change LR dynamically.
+            Note - CosineAnnealingLR and CosineAnnealingWarmRestarts are not supported right now.
+        grad_clip : float or int, optional
+            If provided, clip gradients of model before performin optimizer.step().
         save_best_model_policy : str or function or None, default='val_loss'
             Can be either 'val_loss', 'val_acc' or a function for custom save policy.
             If 'val_loss', model will be saved on every validation loss improvemrnt.
@@ -112,6 +120,8 @@ class ModelWrapper():
         assert self.__state_data['criterion'], 'Criterion not defined! Please use set_criterion() to set a criterion.'
 
         # Add to state data
+        self.__state_data['scheduler'] = scheduler
+        self.__state_data['grad_clip'] = grad_clip
         self.__state_data['save_best_model_policy'] = save_best_model_policy
         self.__state_data['save_best_model_path'] = Path(save_best_model_path)
 
@@ -137,6 +147,10 @@ class ModelWrapper():
 
                 loss = self.__state_data['criterion'](out, yb)
                 loss.backward()
+
+                if self.__state_data['grad_clip']:
+                    clip_grad_norm_(self.__state_data['model'], self.__state_data['grad_clip'])
+
                 self.__state_data['opt'].step()
                 self.__state_data['opt'].zero_grad()
 
@@ -157,9 +171,13 @@ class ModelWrapper():
                     train_loss_epoch_history = torch.cat((train_loss_epoch_history, loss.detach().view(1)))
                     train_acc_epoch_history = torch.cat((train_acc_epoch_history, out == yb))
 
+                if self.__state_data['scheduler'] and isinstance(scheduler, (lr_scheduler.CyclicLR, lr_scheduler.OneCycleLR)):
+                    self.__state_data['scheduler'].step()
+
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
             mean_epoch_train_acc = accuracy(train_acc_epoch_history).cpu()
             mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
+
             self.__end_of_epoch_step(i, mean_epoch_train_loss, mean_epoch_train_acc, mean_epoch_val_loss, mean_epoch_val_acc)
 
             print('epoch ->', i, '  train loss ->', mean_epoch_train_loss.item(), '  train acc ->', mean_epoch_train_acc.item(), '  val loss ->', mean_epoch_val_loss.item(), '  val acc ->', mean_epoch_val_acc.item())
@@ -211,18 +229,33 @@ class ModelWrapper():
         if self.__state_data['save_best_model_policy']:
             self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc.item())
 
+        # Get lr used in the epoch
+        for param_group in self.__state_data['opt'].param_groups:
+            lr = param_group['lr']
+
+        # Record training history
         if self.__state_data['history']['epoch'] is None:
             self.__state_data['history']['epoch'] = torch.tensor(epoch).view(1)
+            self.__state_data['history']['lr'] = torch.tensor(lr).view(1)
             self.__state_data['history']['train_loss'] = mean_epoch_train_loss.view(1)
             self.__state_data['history']['train_acc'] = mean_epoch_train_acc.view(1)
             self.__state_data['history']['val_loss'] = mean_epoch_val_loss.view(1)
             self.__state_data['history']['val_acc'] = mean_epoch_val_acc.view(1)
         else:
             self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(epoch).view(1)))
+            self.__state_data['history']['lr'] = torch.cat((self.__state_data['history']['lr'], torch.tensor(lr).view(1)))
             self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss.view(1)))
             self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc.view(1)))
             self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss.view(1)))
             self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc.view(1)))
+
+        # Step scheduler
+        if self.__state_data['scheduler']:
+            if isinstance(self.__state_data['scheduler'], (lr_scheduler.LambdaLR, lr_scheduler.MultiplicativeLR, lr_scheduler.StepLR, lr_scheduler.MultiStepLR, lr_scheduler.ExponentialLR)):
+                self.__state_data['scheduler'].step()
+            elif isinstance(self.__state_data['scheduler'], lr_scheduler.ReduceLROnPlateau):
+                self.__state_data['scheduler'].step(mean_epoch_train_loss)
+
         self.__state_data['total_trained_epochs'] += 1
 
     def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
@@ -237,6 +270,29 @@ class ModelWrapper():
 
     def __get_output_label_similarity(self, output, labels):
         return (torch.round(output) == labels)
+
+    def __get_req_key(self, name):
+        return '.'.join([n for n in name.split('.')[:2] if n not in ['weight', 'bias']])
+
+    def __get_layer_names(self):
+        layer_names = []
+        for name, _ in self.__state_data['model'].named_parameters():
+            key = self.__get_req_key(name)
+            if key not in layer_names: layer_names.append(key)
+
+        return layer_names
+
+    def freeze_to(self, n_layers):
+        layers_to_freeze = self.__get_layer_names()[: n_layers]
+
+        for name, param in self.__state_data['model'].named_parameters():
+            if self.__get_req_key(name) in layers_to_freeze:
+                param.requires_grad = False
+            else:
+                param.requires_grad = True
+
+    def unfreeze(self):
+        self.freeze_to(0)
 
     def performance_stats(self, val_dl):
         """Print loss and accuracy of model"""
@@ -262,6 +318,16 @@ class ModelWrapper():
         plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['val_acc'].tolist(), label = 'Validation Accuracy')
         plt.xlabel('epochs')
         plt.ylabel('accuracy')
+        plt.legend()
+        plt.show()
+
+    def plot_lr(self):
+        """Plot graph of learning rate used in each epoch"""
+        assert len(self.__state_data['history']['lr']) > 0, 'Model must be trained first.'
+
+        plt.plot(range(1, self.__state_data['total_trained_epochs']+1), self.__state_data['history']['lr'].tolist(), label = 'Learning Rate')
+        plt.xlabel('epochs')
+        plt.ylabel('value')
         plt.legend()
         plt.show()
 
