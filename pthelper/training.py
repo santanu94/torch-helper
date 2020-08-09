@@ -212,10 +212,12 @@ class ModelWrapper():
             report = 'epoch -> ' + str(i)
             report += '  train loss -> ' + str(mean_epoch_train_loss.item())
             report += '  train acc -> ' + str(mean_epoch_train_acc)
-            report += '  train_f1 -> ' + str(train_f1_score) if train_f1_score is not None
+            if train_f1_score is not None:
+                report += '  train_f1 -> ' + str(train_f1_score)
             report += '  val loss -> ' + str(mean_epoch_val_loss.item())
             report += '  val acc -> ' + str(mean_epoch_val_acc)
-            report += '  val_f1 -> ' + str(val_f1_score) if val_f1_score is not None
+            if val_f1_score is not None:
+                report += '  val_f1 -> ' + str(val_f1_score)
             print(report)
 
     @torch.no_grad()
