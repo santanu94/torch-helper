@@ -205,7 +205,7 @@ class ModelWrapper():
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).cpu()
             mean_epoch_train_acc = get_accuracy(train_epoch_true_label, train_epoch_pred)
             train_f1_score = get_f1_score(train_epoch_true_label, train_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
-            mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score = self.__validation_step(val_dl)
+            mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score = self.__validation_step(val_dl, self.__state_data['f1_score'])
 
             self.__end_of_epoch_step(i, mean_epoch_train_loss, mean_epoch_train_acc, train_f1_score, mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score)
 
@@ -221,7 +221,7 @@ class ModelWrapper():
             print(report)
 
     @torch.no_grad()
-    def __validation_step(self, dl):
+    def __validation_step(self, dl, f1_score):
         """Perform validation step during training and return loss and accuracy for given epoch"""
 
         # Perform criterion checks
@@ -270,7 +270,7 @@ class ModelWrapper():
                 val_epoch_true_label = torch.cat((val_epoch_true_label, yb))
                 # val_acc_epoch_history = torch.cat((val_acc_epoch_history, out == yb))
 
-        return torch.mean(val_loss_epoch_history).cpu(), get_accuracy(val_epoch_true_label, val_epoch_pred), get_f1_score(val_epoch_true_label, val_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
+        return torch.mean(val_loss_epoch_history).cpu(), get_accuracy(val_epoch_true_label, val_epoch_pred), get_f1_score(val_epoch_true_label, val_epoch_pred, average=f1_score) if f1_score else None
 
     def __end_of_epoch_step(self, epoch, mean_epoch_train_loss, mean_epoch_train_acc, train_f1_score, mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score):
         if self.__state_data['save_best_model_policy']:
@@ -347,9 +347,9 @@ class ModelWrapper():
     def unfreeze(self):
         self.freeze_to(0)
 
-    def performance_stats(self, val_dl):
+    def performance_stats(self, val_dl, f1_score=None):
         """Print loss and accuracy of model"""
-        mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl)
+        mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl, f1_score)
         print('loss ->', mean_epoch_val_loss.item(), '  acc ->', mean_epoch_val_acc.item())
 
     def plot_loss(self):
