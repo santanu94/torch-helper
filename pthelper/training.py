@@ -274,7 +274,7 @@ class ModelWrapper():
 
     def __end_of_epoch_step(self, epoch, mean_epoch_train_loss, mean_epoch_train_acc, train_f1_score, mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score):
         if self.__state_data['save_best_model_policy']:
-            self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc.item())
+            self.__save_best_model(mean_epoch_val_loss.item(), mean_epoch_val_acc)
 
         # Get lr used in the epoch
         for param_group in self.__state_data['opt'].param_groups:
@@ -285,22 +285,22 @@ class ModelWrapper():
             self.__state_data['history']['epoch'] = torch.tensor(epoch).view(1)
             self.__state_data['history']['lr'] = torch.tensor(lr).view(1)
             self.__state_data['history']['train_loss'] = mean_epoch_train_loss.view(1)
-            self.__state_data['history']['train_acc'] = mean_epoch_train_acc
+            self.__state_data['history']['train_acc'] = torch.tensor(mean_epoch_train_acc).view(1)
             self.__state_data['history']['val_loss'] = mean_epoch_val_loss.view(1)
-            self.__state_data['history']['val_acc'] = mean_epoch_val_acc
+            self.__state_data['history']['val_acc'] = torch.tensor(mean_epoch_val_acc).view(1)
             if val_f1_score is not None:
-                self.__state_data['history']['train_f1'] = train_f1_score
-                self.__state_data['history']['val_f1'] = val_f1_score
+                self.__state_data['history']['train_f1'] = torch.tensor(train_f1_score).view(1)
+                self.__state_data['history']['val_f1'] = torch.tensor(val_f1_score).view(1)
         else:
             self.__state_data['history']['epoch'] = torch.cat((self.__state_data['history']['epoch'], torch.tensor(epoch).view(1)))
             self.__state_data['history']['lr'] = torch.cat((self.__state_data['history']['lr'], torch.tensor(lr).view(1)))
             self.__state_data['history']['train_loss'] = torch.cat((self.__state_data['history']['train_loss'], mean_epoch_train_loss.view(1)))
-            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], mean_epoch_train_acc))
+            self.__state_data['history']['train_acc'] = torch.cat((self.__state_data['history']['train_acc'], torch.tensor(mean_epoch_train_acc).view(1)))
             self.__state_data['history']['val_loss'] = torch.cat((self.__state_data['history']['val_loss'], mean_epoch_val_loss.view(1)))
-            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], mean_epoch_val_acc))
+            self.__state_data['history']['val_acc'] = torch.cat((self.__state_data['history']['val_acc'], torch.tensor(mean_epoch_val_acc).view(1)))
             if val_f1_score is not None:
-                self.__state_data['history']['train_f1'] = torch.cat((self.__state_data['history']['train_f1'], train_f1_score))
-                self.__state_data['history']['val_f1'] = torch.cat((self.__state_data['history']['val_f1'], val_f1_score))
+                self.__state_data['history']['train_f1'] = torch.cat((self.__state_data['history']['train_f1'], torch.tensor(train_f1_score).view(1)))
+                self.__state_data['history']['val_f1'] = torch.cat((self.__state_data['history']['val_f1'], torch.tensor(val_f1_score).view(1)))
 
         # Step scheduler
         if self.__state_data['scheduler']:
@@ -349,8 +349,12 @@ class ModelWrapper():
 
     def performance_stats(self, val_dl, f1_score=None):
         """Print loss and accuracy of model"""
-        mean_epoch_val_loss, mean_epoch_val_acc = self.__validation_step(val_dl, f1_score)
-        print('loss ->', mean_epoch_val_loss.item(), '  acc ->', mean_epoch_val_acc.item())
+        mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score = self.__validation_step(val_dl, f1_score)
+        report = 'loss ->' + str(mean_epoch_val_loss.item())
+        report += '  acc ->' + str(mean_epoch_val_acc)
+        if f1_score:
+            report += '  f1 ->' + str(val_f1_score)
+        print(report)
 
     def plot_loss(self):
         """Plot graph comparing training and validation loss"""
