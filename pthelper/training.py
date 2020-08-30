@@ -209,17 +209,6 @@ class ModelWrapper():
 
             self.__end_of_epoch_step(i, mean_epoch_train_loss, mean_epoch_train_acc, train_f1_score, mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score)
 
-            report = 'epoch -> ' + str(i)
-            report += '  train loss -> ' + str(mean_epoch_train_loss)
-            report += '  train acc -> ' + str(mean_epoch_train_acc)
-            if train_f1_score is not None:
-                report += '  train_f1 -> ' + str(train_f1_score)
-            report += '  val loss -> ' + str(mean_epoch_val_loss)
-            report += '  val acc -> ' + str(mean_epoch_val_acc)
-            if val_f1_score is not None:
-                report += '  val_f1 -> ' + str(val_f1_score)
-            print(report)
-
     def __init_history(self, num_epochs):
         if self.__state_data['total_trained_epochs'] == 0:
             self.__state_data['history']['epoch'] = torch.empty(num_epochs, dtype=torch.int16)
@@ -321,6 +310,15 @@ class ModelWrapper():
 
         self.__state_data['total_trained_epochs'] += 1
 
+        #print report
+        report = f'epoch -> {i}    lr -> {lr}    train loss -> {mean_epoch_train_loss:.6f}    train acc -> {mean_epoch_train_acc:.6f}'
+        if train_f1_score is not None:
+            report += f'    train_f1 -> {train_f1_score:.6f}'
+        report += f'    val loss -> {mean_epoch_val_loss:.6f}    val acc -> {mean_epoch_val_acc:.6f}'
+        if val_f1_score is not None:
+            report += f'    val_f1 -> {val_f1_score:.6f}'
+        print(report)
+
     def __save_best_model(self, mean_epoch_val_loss, mean_epoch_val_acc):
         if self.__state_data['save_best_model_policy'] == 'val_loss':
             if not self.__state_data['best_val_loss'] or mean_epoch_val_loss < self.__state_data['best_val_loss']:
@@ -360,10 +358,9 @@ class ModelWrapper():
     def performance_stats(self, val_dl, f1_score=None):
         """Print loss and accuracy of model"""
         mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score = self.__validation_step(val_dl, f1_score)
-        report = 'loss -> ' + str(mean_epoch_val_loss)
-        report += '  acc -> ' + str(mean_epoch_val_acc)
+        report = f'loss -> {mean_epoch_val_loss:.6f}    acc -> {mean_epoch_val_acc:.6f}'
         if f1_score:
-            report += '  f1 -> ' + str(val_f1_score)
+            report += f'    f1 -> {val_f1_score:.6f}'
         print(report)
 
     def plot_loss(self):
