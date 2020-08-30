@@ -311,7 +311,7 @@ class ModelWrapper():
         self.__state_data['total_trained_epochs'] += 1
 
         #print report
-        report = f'epoch -> {i}    lr -> {lr}    train loss -> {mean_epoch_train_loss:.6f}    train acc -> {mean_epoch_train_acc:.6f}'
+        report = f'epoch -> {epoch}    lr -> {lr}    train loss -> {mean_epoch_train_loss:.6f}    train acc -> {mean_epoch_train_acc:.6f}'
         if train_f1_score is not None:
             report += f'    train_f1 -> {train_f1_score:.6f}'
         report += f'    val loss -> {mean_epoch_val_loss:.6f}    val acc -> {mean_epoch_val_acc:.6f}'
