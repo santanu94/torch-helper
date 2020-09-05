@@ -202,6 +202,9 @@ class ModelWrapper():
                 if self.__state_data['scheduler'] and isinstance(scheduler, (lr_scheduler.CyclicLR, lr_scheduler.OneCycleLR)):
                     self.__state_data['scheduler'].step()
 
+            train_epoch_true_label = train_epoch_true_label.view(-1)
+            train_epoch_pred = train_epoch_pred.view(-1)
+            
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).item()
             mean_epoch_train_acc = get_accuracy(train_epoch_true_label, train_epoch_pred)
             train_f1_score = get_f1_score(train_epoch_true_label, train_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
@@ -277,6 +280,8 @@ class ModelWrapper():
                 val_epoch_pred = torch.cat((val_epoch_pred, out))
                 val_epoch_true_label = torch.cat((val_epoch_true_label, yb))
 
+        val_epoch_true_label = val_epoch_true_label.view(-1)
+        val_epoch_pred = val_epoch_pred.view(-1)
         return torch.mean(val_loss_epoch_history).item(), get_accuracy(val_epoch_true_label, val_epoch_pred), get_f1_score(val_epoch_true_label, val_epoch_pred, average=f1_score) if f1_score else None
 
     def __end_of_epoch_step(self, epoch, mean_epoch_train_loss, mean_epoch_train_acc, train_f1_score, mean_epoch_val_loss, mean_epoch_val_acc, val_f1_score):
@@ -311,7 +316,7 @@ class ModelWrapper():
         self.__state_data['total_trained_epochs'] += 1
 
         #print report
-        report = f'epoch -> {epoch}    lr -> {lr}    train loss -> {mean_epoch_train_loss:.6f}    train acc -> {mean_epoch_train_acc:.6f}'
+        report = f'epoch -> {epoch}    lr -> {lr:.6f}    train loss -> {mean_epoch_train_loss:.6f}    train acc -> {mean_epoch_train_acc:.6f}'
         if train_f1_score is not None:
             report += f'    train_f1 -> {train_f1_score:.6f}'
         report += f'    val loss -> {mean_epoch_val_loss:.6f}    val acc -> {mean_epoch_val_acc:.6f}'
