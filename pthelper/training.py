@@ -85,7 +85,7 @@ class ModelWrapper():
         return self.__state_data
 
     # Train model
-    def fit(self, epoch, train_dl, val_dl, test_dl=None, scheduler=None, grad_clip=None, f1_score=None, save_best_model_policy='val_loss', save_best_model_path='model'):
+    def fit(self, epoch, train_dl, val_dl, scheduler=None, grad_clip=None, f1_score=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
 
@@ -172,7 +172,7 @@ class ModelWrapper():
                 loss.backward()
 
                 if self.__state_data['grad_clip']:
-                    clip_grad_norm_(self.__state_data['model'], self.__state_data['grad_clip'])
+                    clip_grad_norm_(self.__state_data['model'].parameters(), self.__state_data['grad_clip'])
 
                 self.__state_data['opt'].step()
                 self.__state_data['opt'].zero_grad()
@@ -204,7 +204,7 @@ class ModelWrapper():
 
             train_epoch_true_label = train_epoch_true_label.view(-1)
             train_epoch_pred = train_epoch_pred.view(-1)
-            
+
             mean_epoch_train_loss = torch.mean(train_loss_epoch_history).item()
             mean_epoch_train_acc = get_accuracy(train_epoch_true_label, train_epoch_pred)
             train_f1_score = get_f1_score(train_epoch_true_label, train_epoch_pred, average=self.__state_data['f1_score']) if self.__state_data['f1_score'] else None
