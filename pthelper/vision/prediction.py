@@ -72,8 +72,10 @@ def predict(model, data, pred_func=None, output_selection_func=None):
             pred = torch.round(out)
         elif output_selection_func == 'argmax':
             pred = torch.argmax(out, dim=1)
-        else:
+        elif callable(output_selection_func):
             pred = output_selection_func(out)
+        else:
+            pred = out
 
         return out.cpu(), pred.int().cpu(), torch.tensor(float('nan')).cpu()
     else:
@@ -98,8 +100,10 @@ def predict(model, data, pred_func=None, output_selection_func=None):
                 pred = torch.round(out)
             elif output_selection_func == 'argmax':
                 pred = torch.argmax(out, dim=1)
-            else:
+            elif callable(output_selection_func):
                 pred = output_selection_func(out)
+            else:
+                pred = out
 
             if out_list is None:
                 out_list = out

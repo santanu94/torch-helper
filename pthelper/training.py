@@ -66,14 +66,6 @@ class ModelWrapper():
         self.__state_data['criterion'] = criterion
 
     # Getter methods
-    def optimizer(self):
-        """Getter function for optimizer"""
-        print(self.__state_data['opt'])
-
-    def criterion(self):
-        """Getter function for criterion"""
-        print(self.__state_data['criterion'])
-
     def model(self):
         """Return model object"""
         return self.__state_data['model']
@@ -81,11 +73,11 @@ class ModelWrapper():
     def parameters(self):
         return self.__state_data['model'].parameters()
 
-    def get_state_data(self):
+    def state_data(self):
         return self.__state_data
 
     # Train model
-    def fit(self, epoch, train_dl, val_dl, scheduler=None, grad_clip=None, f1_score=None, save_best_model_policy='val_loss', save_best_model_path='model'):
+    def fit(self, epoch, train_dl, val_dl, optimizer, criterion, scheduler=None, grad_clip=None, f1_score=None, save_best_model_policy='val_loss', save_best_model_path='model'):
         """
         Train model on training data.
 
@@ -98,8 +90,10 @@ class ModelWrapper():
             Data on which the model will be trained.
         val_dl : DataLoader, DataLoaderWrapper or Iterable
             Data to be used for validation.
-        test_dl : DataLoader, DataLoaderWrapper or Iterable, optional
-            Data to be used to test model performance.
+        optimizer : Pytorch optimizer
+            A valid pytorch optimizer from torch.optim, e.g., torch.optim.SGD(...).
+        criterion : Pytorch criterion
+            A valid pytorch criterion, a.k.a., the loss function. e.g. nn.CrossEntropyLoss().
         scheduler : Pytorch scheduler, optional
             Scheduler to change LR dynamically.
             Note - CosineAnnealingLR and CosineAnnealingWarmRestarts are not supported right now.
@@ -184,11 +178,8 @@ class ModelWrapper():
                     out = torch.round(out)
                 elif self.__state_data['output_selection_func'] == 'argmax':
                     out = torch.argmax(out, dim=1)
-                else:
+                elif callable(self.__state_data['output_selection_func']):
                     out = output_selection_func(out)
-
-                self.__state_data['batch_model_pred'] = out
-                self.__state_data['batch_true_labels'] = yb
 
                 if train_loss_epoch_history is None:
                     train_loss_epoch_history = loss.detach().view(1)
@@ -265,11 +256,8 @@ class ModelWrapper():
                 out = torch.round(out)
             elif self.__state_data['output_selection_func'] == 'argmax':
                 out = torch.argmax(out, dim=1)
-            else:
+            elif callable(self.__state_data['output_selection_func']):
                 out = output_selection_func(out)
-
-            self.__state_data['batch_model_pred'] = out
-            self.__state_data['batch_true_labels'] = yb
 
             if val_loss_epoch_history is None:
                 val_loss_epoch_history = loss.detach().view(1)
