@@ -12,15 +12,13 @@ import types
 import warnings
 
 class ModelWrapper():
-    def __init__(self, model, opt=None, criterion=None, pred_func=None, output_selection_func=None, device=None, **watch):
+    def __init__(self, model, pred_func=None, output_selection_func=None, device=None, **watch):
         """
         Wrapper class for model, optimizer and loss.
 
         Parameters
         ----------
         model : Pytorch Model
-        opt : Pytorch optimizer
-        criterion : Pytorch loss
         pred_func : Pytorch layer or function reference, optional
             If model outputs logit then pass a function reference or a pytorch
             layer to get prediction or calculate model accuracy.
@@ -58,14 +56,15 @@ class ModelWrapper():
         self.__state_data['model'] = to_device(model, device if device else get_default_device())
         self.watch = watch
 
-    # Setter methods
-    def set_optimizer(self, opt):
-        self.__state_data['opt'] = opt
-
-    def set_criterion(self, criterion):
-        self.__state_data['criterion'] = criterion
-
     # Getter methods
+    def optimizer(self):
+        """Getter function for optimizer"""
+        print(self.__state_data['opt'])
+
+    def criterion(self):
+        """Getter function for criterion"""
+        print(self.__state_data['criterion'])
+
     def model(self):
         """Return model object"""
         return self.__state_data['model']
@@ -130,10 +129,12 @@ class ModelWrapper():
         """
 
         # Perform opt and criterion checks
-        assert self.__state_data['opt'], 'Optimizer not defined! Please use set_optimizer() to set an optimizer.'
-        assert self.__state_data['criterion'], 'Criterion not defined! Please use set_criterion() to set a criterion.'
+        assert opt, 'Optimizer not defined!'
+        assert criterion, 'Criterion not defined!'
 
         # Add to state data
+        self.__state_data['opt'] = opt
+        self.__state_data['criterion'] = criterion
         self.__state_data['scheduler'] = scheduler
         self.__state_data['grad_clip'] = grad_clip
         self.__state_data['f1_score'] = f1_score
