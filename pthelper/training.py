@@ -127,11 +127,11 @@ class ModelWrapper():
         """
 
         # Perform opt and criterion checks
-        assert opt, 'Optimizer not defined!'
+        assert optimizer, 'Optimizer not defined!'
         assert criterion, 'Criterion not defined!'
 
         # Add to state data
-        self.__state_data['opt'] = opt
+        self.__state_data['opt'] = optimizer
         self.__state_data['criterion'] = criterion
         self.__state_data['scheduler'] = scheduler
         self.__state_data['grad_clip'] = grad_clip
