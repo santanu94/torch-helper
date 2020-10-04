@@ -47,10 +47,10 @@ def predict(model, data, pred_func=None, output_selection_func=None):
     # Get details from ModelWrapper object
     if type(model) == ModelWrapper:
         if not pred_func:
-            pred_func = model.get_state_data()['pred_func']
+            pred_func = model.state_data()['pred_func']
 
         if not output_selection_func:
-            output_selection_func = model.get_state_data()['output_selection_func']
+            output_selection_func = model.state_data()['output_selection_func']
 
         model = model.model()
 
