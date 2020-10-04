@@ -42,8 +42,6 @@ class ModelWrapper():
         """
         self.__state_data = {}
         self.__state_data['model'] = model
-        self.__state_data['opt'] = opt
-        self.__state_data['criterion'] = criterion
         self.__state_data['pred_func'] = pred_func
         # self.__state_data['one_hot_target'] = one_hot_target
         # self.__state_data['num_classes'] = num_classes
