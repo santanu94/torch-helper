@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="torch-helper", # Replace with your own username
+    name="torch-helper",
     version="0.3-alpha",
     author="Santanu Bhattacharjee",
     author_email="mail.santanu94@gmail.com",
@@ -12,6 +12,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/santanu94/torch-helper.git",
+    keywords = ['PyTorch', 'Deep Learning'],
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
