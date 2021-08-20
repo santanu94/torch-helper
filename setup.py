@@ -8,12 +8,12 @@ setuptools.setup(
     version="0.4-alpha",
     author="Santanu Bhattacharjee",
     author_email="mail.santanu94@gmail.com",
-    description="A pytorch utility to provide customizable quick use functions.",
+    description="A pytorch library to provide some common utility functions.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/santanu94/torch-helper.git",
     keywords = ['PyTorch', 'Deep Learning'],
-    packages=setuptools.find_packages(),
+    packages=['pthelper'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -22,7 +22,6 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=[
         "torch>=1.0.0",
-        "torchvision>=0.2.1",
         "sklearn"
     ]
 )
