@@ -13,7 +13,7 @@ def __get_layer_names(model):
     return layer_names
 
 def freeze_to(model, n_layers):
-    layers_to_freeze = __get_layer_names()[: n_layers]
+    layers_to_freeze = __get_layer_names(model)[: n_layers]
 
     for name, param in model.named_parameters():
         if __get_req_key(name) in layers_to_freeze:
@@ -21,8 +21,8 @@ def freeze_to(model, n_layers):
         else:
             param.requires_grad = True
 
-def unfreeze():
-    freeze_to(0)
+def unfreeze(model):
+    freeze_to(model, 0)
 
 def save_model(model, filename, path='./'):
     torch.save(model.state_dict(), Path(path,filename))
