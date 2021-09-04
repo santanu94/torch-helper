@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="torch-helper",
-    version="0.5-alpha",
+    version="0.5.1-alpha",
     author="Santanu Bhattacharjee",
     author_email="mail.santanu94@gmail.com",
     description="A pytorch library to provide some common utility functions.",
